@@ -34,23 +34,27 @@ export default function Connections() {
   const { update } = usePlanner();
   const params = useLocalSearchParams<{ connected?: string; error?: string; provider?: string }>();
   const [statuses, setStatuses] = useState<IntegrationStatus[]>([]);
-  const [busy, setBusy] = useState<string>(''), [message, setMessage] = useState('');
+  const [busy, setBusy] = useState<string>('refresh'), [message, setMessage] = useState('');
 
   const refresh = async () => {
     setBusy('refresh'); setMessage('');
     try { setStatuses(await listIntegrations()); } catch (e) { setMessage((e as Error).message); } finally { setBusy(''); }
   };
-  useEffect(() => { refresh(); }, []);
   useEffect(() => {
-    if (params.connected) { setMessage(`${params.connected === 'google' ? 'Google' : 'Microsoft'} connected. You can now import calendar events or load recent email in AI.`); refresh(); }
-    if (params.error) setMessage(`Connection was not completed: ${params.error}`);
-  }, [params.connected, params.error]);
+    let active = true;
+    listIntegrations()
+      .then(items => { if (active) setStatuses(items); })
+      .catch(e => { if (active) setMessage((e as Error).message); })
+      .finally(() => { if (active) setBusy(''); });
+    return () => { active = false; };
+  }, [params.connected]);
 
   const connect = async (provider: IntegrationProvider) => {
     setBusy(provider); setMessage('');
     try {
       const { authorizeUrl } = await beginIntegration(provider);
       await Linking.openURL(authorizeUrl);
+      setBusy('');
     } catch (e) { setMessage((e as Error).message); setBusy(''); }
   };
   const disconnect = async (provider: IntegrationProvider) => {
@@ -85,8 +89,15 @@ export default function Connections() {
     </Card>;
   };
 
+  const callbackMessage = params.error
+    ? `Connection was not completed: ${params.error}`
+    : params.connected
+      ? `${params.connected === 'google' ? 'Google' : 'Microsoft'} connected. You can now import calendar events or load recent email in AI.`
+      : '';
+  const visibleMessage = message || callbackMessage;
+
   return <Page eyebrow="YOUR DATA SOURCES" title="Connections." subtitle="Bring fixed commitments and actionable messages into one planning workflow without handing Planner AI your account passwords.">
-    {!!message && <Notice text={message} danger={Boolean(params.error)} />}
+    {!!visibleMessage && <Notice text={visibleMessage} danger={Boolean(params.error && !message)} />}
     {providerCard('google', 'Google', 'Gmail · Google Calendar')}
     {providerCard('microsoft', 'Microsoft', 'Outlook Mail · Outlook Calendar')}
     <Card><Heading>EGYM Wellpass</Heading><Body>Direct member scheduling is not enabled. EGYM’s published Wellpass APIs are partner-oriented, so Planner AI will not ask for or scrape your Wellpass credentials. Keep workout time in the planner and complete booking/check-in in Wellpass until an approved member integration is available.</Body><Button secondary title="Add a fitness task" onPress={() => router.push('/tasks')} /></Card>
