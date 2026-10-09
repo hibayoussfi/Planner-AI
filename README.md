@@ -2,7 +2,7 @@
 
 A phone-first weekly planner built with Expo, React Native and TypeScript. Make space for work, personal priorities and fitness without moving fixed appointments.
 
-**Version 0.2 is an integration-capable development build, not an App Store release.** Local planning works without accounts or API keys. AI extraction and cloud backups require your own backend/Supabase configuration. Google and Microsoft connections are implemented behind your own OAuth credentials; EGYM Wellpass remains manual because the published Wellpass API path is partner-oriented rather than a general member-planner login.
+**This is an integration-capable development build, not an App Store release.** Local planning works without accounts or API keys. AI extraction and cloud backups require your own backend/Supabase configuration. Google and Microsoft connections are implemented behind your own OAuth credentials; EGYM Wellpass remains manual because the published Wellpass API path is partner-oriented rather than a general member-planner login.
 
 ## Run on your phone
 
@@ -122,7 +122,7 @@ Settings offers **Save a cloud backup** and **Restore latest backup**. Each save
 
 ## Integration status
 
-| Capability | v0.2 |
+| Capability | Current development build |
 | --- | --- |
 | Native iOS/Android UI and browser preview | Implemented; physical device testing still required |
 | Tasks, fixed appointments, Today/Week views | Implemented |
