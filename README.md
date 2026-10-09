@@ -2,7 +2,7 @@
 
 A phone-first weekly planner built with Expo, React Native and TypeScript. Make space for work, personal priorities and fitness without moving fixed appointments.
 
-**Version 0.1 is an initial implementation, not an App Store release.** Local planning works without accounts or API keys. AI extraction and cloud backups require your own backend/Supabase configuration. Gmail, Google Calendar and direct EGYM Wellpass integration are not implemented yet.
+**This is an integration-capable development build, not an App Store release.** Local planning works without accounts or API keys. AI extraction and cloud backups require your own backend/Supabase configuration. Google and Microsoft connections are implemented behind your own OAuth credentials; EGYM Wellpass remains manual because the published Wellpass API path is partner-oriented rather than a general member-planner login.
 
 ## Run on your phone
 
@@ -58,7 +58,9 @@ EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8787
 
 The public Supabase key is designed to be included in the app; RLS protects data. **Never put a Supabase service-role key or OpenAI API key in an `EXPO_PUBLIC_` variable.** Restart Expo after changing environment variables.
 
-Use Settings to create an account, confirm email if required, and sign in. Sessions stay in memory in this initial release, so sign in again after restarting. Signing out leaves local tasks on the device. Password reset, persistent secure sessions and account deletion UI remain future work.
+Use Settings to create an account, confirm email if required, and sign in. Sessions stay in memory in this development release, so sign in again after restarting. Signing out leaves local tasks on the device. Password reset, persistent secure sessions and account deletion UI remain future work.
+
+Run both `database/001_backups.sql` and `database/002_integrations.sql`. The second migration creates a server-only table for encrypted Google/Microsoft OAuth tokens. It intentionally has no client RLS policies and should only be accessed with the Supabase service-role key from the backend.
 
 ### 2. Configure the Node backend
 
@@ -74,13 +76,53 @@ Check `http://localhost:8787/health`. `aiConfigured` reports whether required va
 
 In **AI**, paste notes or email text. Tapping “Send text to AI” explicitly sends that text to the backend and OpenAI. The server validates the Supabase session, requests structured task drafts with `store: false`, validates the result, and returns drafts for review. Edit the title, duration or deadline before approving each task. Category and priority can be changed in Tasks. Nothing is automatically scheduled, emailed or booked.
 
-### 3. Manual cloud backup
+### 3. Connect Gmail / Google Calendar and Outlook / Microsoft Calendar
+
+Provider connections are separate from Planner AI sign-in. They use server-side OAuth authorization-code flows so Google/Microsoft passwords never pass through Planner AI.
+
+Add the following server-only values to `server/.env`:
+
+```dotenv
+SUPABASE_SERVICE_ROLE_KEY=
+INTEGRATION_ENCRYPTION_KEY=
+OAUTH_STATE_SECRET=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8787/oauth/google/callback
+
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT=common
+MICROSOFT_REDIRECT_URI=http://localhost:8787/oauth/microsoft/callback
+
+APP_RETURN_URL=planner-ai://connections
+```
+
+`INTEGRATION_ENCRYPTION_KEY` must be 32 random bytes encoded as base64. Keep the service-role key, provider secrets, encryption key and OAuth state secret on the backend only.
+
+For Google, create an OAuth **Web application**, enable Gmail API and Google Calendar API, and register the exact redirect URI. This implementation asks for read-only calendar access and `gmail.readonly`. Gmail read access is a restricted Google scope, so a public release can require OAuth verification and a security assessment depending on how restricted-scope data is handled.
+
+For Microsoft, create an Entra app registration and register the exact redirect URI. The app requests delegated `Mail.Read`, `Calendars.ReadBasic`, `User.Read` and `offline_access`.
+
+After configuration:
+
+1. Sign in to Planner AI under **Settings**.
+2. Open **Settings → Manage app connections**.
+3. Connect Google or Microsoft in the system browser.
+4. Import the next 14 days of calendar events. They become fixed blocks; regenerate affected weeks afterward.
+5. In **AI**, tap **Load recent Gmail** or **Load recent Outlook mail**. Recent message previews are placed in the editable review box. Nothing is sent to OpenAI until you explicitly tap **Send text to AI**.
+6. Disconnecting removes the encrypted provider connection from Planner AI's database.
+
+The custom `planner-ai://` callback is intended for a development/production build. For browser-only testing, set `APP_RETURN_URL` to a permitted web URL for your local deployment instead.
+
+### 4. Manual cloud backup
 
 Settings offers **Save a cloud backup** and **Restore latest backup**. Each save creates a new snapshot and preserves older ones. Restore requires explicit confirmation and replaces local planner data. This is not live sync or a merge system. Backups follow the timezone/wall-clock limitations below. Account owners can delete their backups through Supabase; cloud deletion UI is not included yet.
 
 ## Integration status
 
-| Capability | v0.1 |
+| Capability | Current development build |
 | --- | --- |
 | Native iOS/Android UI and browser preview | Implemented; physical device testing still required |
 | Tasks, fixed appointments, Today/Week views | Implemented |
@@ -88,12 +130,15 @@ Settings offers **Save a cloud backup** and **Restore latest backup**. Each save
 | Local persistence | Implemented |
 | Supabase email/password auth and private manual backups | Implemented; requires project setup and live verification |
 | OpenAI task extraction from notes/pasted email | Implemented; requires server credentials and live verification |
-| Gmail inbox reading | Not implemented; OAuth and consent flow needed |
-| Google Calendar read/write | Not implemented; event IDs, sync and approval flow needed |
-| EGYM Wellpass | Manual fitness tasks only; no login, scraping or bookings |
+| Gmail inbox reading | Implemented as explicit recent-message preview loading after Google OAuth; public release requires Google restricted-scope compliance |
+| Google Calendar | Implemented read-only import for the next 14 days; imported events become fixed blocks |
+| Outlook Mail | Implemented as explicit recent-message preview loading after Microsoft OAuth |
+| Outlook Calendar | Implemented read-only import for the next 14 days |
+| Provider token storage | Server-side AES-256-GCM encryption; Supabase service-role-only table |
+| EGYM Wellpass | Manual fitness tasks only; no credential collection, scraping or bookings |
 | Push reminders, background replanning, App Store release | Not implemented |
 
-Wellpass's official developer material describes partner integrations, not unrestricted access to a member's weekly activity. Partner access and the relevant booking API must be established before a direct connection can be promised. Until then, enter fitness tasks and book separately in Wellpass.
+EGYM's official developer material exposes Wellpass integration paths for partners such as membership validation and class-booking integration into the Wellpass app. That is not the same as a general third-party member OAuth API. Planner AI therefore does not collect Wellpass credentials or scrape the app; enter fitness tasks in Planner AI and complete booking/check-in in Wellpass until EGYM provides or approves the required member-facing integration path.
 
 ## Development and verification
 
@@ -122,7 +167,7 @@ docs/             Architecture and next implementation steps
 
 ## Known limits before production
 
-The local data store is not encrypted by this app. Do not treat v0.1 as a secure inbox vault. Source email text is never saved in planner state, but approved task titles can contain private information. Provider retention rules still apply despite `store: false`.
+The local planner data store is not encrypted by this app. Do not treat it as a secure inbox vault. Provider OAuth tokens are encrypted server-side before database storage, but email previews loaded into the AI screen live in app memory and anything you explicitly send to the extractor is transmitted to your backend/OpenAI. Source email text is not persisted in planner state, but approved task titles can contain private information. Provider retention and compliance rules still apply despite OpenAI requests using `store: false`.
 
 Wall-clock schedules do not convert when you travel to another timezone. Overnight events, recurring appointments, multi-day tasks and ambiguous/repeated DST hours need a richer event model before calendar sync. The scheduler is a first-fit algorithm, not a global optimiser; it can report unscheduled work even if a more complex arrangement exists. Fitness sessions may be scheduled at any time within planning hours; location, opening hours, travel and class availability are not queried.
 

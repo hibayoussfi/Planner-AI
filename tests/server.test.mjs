@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeServer } from '../server/index.mjs';
 import { extractDrafts, validateDrafts } from '../server/ai.mjs';
+import { createOAuthState, verifyOAuthState, encryptSecret, decryptSecret } from '../server/integrations.mjs';
 const task = { title: 'Prepare slides', minutes: 60, priority: 2, category: 'work', deadline: null };
 const config = { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'test-model', SUPABASE_URL: 'https://example.invalid', SUPABASE_ANON_KEY: 'test-public' };
 const providerResponse = () => new Response(JSON.stringify({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ tasks: [task] }) }] }] }));
@@ -41,3 +42,21 @@ test('provider refusals and malformed outputs are rejected', async () => {
   await assert.rejects(extractDrafts({}, config, async () => new Response(JSON.stringify({ status: 'incomplete' }))));
   await assert.rejects(extractDrafts({}, config, async () => new Response(JSON.stringify({ status: 'completed', output: [{ content: [{ type: 'refusal', refusal: 'No' }] }] }))));
 });
+
+
+test('integration secrets are encrypted and OAuth state is signed and expires', () => {
+  const key = Buffer.alloc(32, 7).toString('base64');
+  const encrypted = encryptSecret('refresh-token-value', key);
+  assert.notEqual(encrypted, 'refresh-token-value');
+  assert.equal(decryptSecret(encrypted, key), 'refresh-token-value');
+  const oauth = { OAUTH_STATE_SECRET: 'test-state-secret' };
+  const state = createOAuthState('user-123', 'google', oauth, 1_000);
+  assert.deepEqual(verifyOAuthState(state, oauth, 1_001).u, 'user-123');
+  assert.throws(() => verifyOAuthState(state + 'x', oauth, 1_001));
+  assert.throws(() => verifyOAuthState(state, oauth, 1_000 + 10 * 60 * 1000 + 1));
+});
+
+test('integration API requires a valid Planner AI session', async () => withServer(config, () => { throw new Error('Must not call without auth'); }, async url => {
+  const response = await fetch(`${url}/v1/integrations`);
+  assert.equal(response.status, 401);
+}));
