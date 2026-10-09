@@ -2,7 +2,7 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import { dateKey } from '../core/planner';
 
-// Sessions intentionally stay in memory in v0.1. Never store email passwords or provider tokens in planner data.
+// Sessions intentionally stay in memory in this development version. Never store email passwords or provider tokens in planner data.
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 export const supabase = url && key ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false } }) : null;
@@ -15,9 +15,12 @@ async function authedApi<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!supabase || !apiUrl) throw new Error('Connections need Planner AI account and backend setup first.');
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Sign in under Settings before connecting another app.');
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${session.access_token}`);
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}${path}`, {
     ...init,
-    headers: { Authorization: `Bearer ${session.access_token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(init.headers || {}) },
+    headers,
     signal: AbortSignal.timeout(45000),
   });
   const body = await response.json().catch(() => ({}));
