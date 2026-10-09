@@ -19,6 +19,9 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/Planner-AI"
+    }
   }
 }
