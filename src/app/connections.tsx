@@ -8,10 +8,11 @@ import { usePlanner } from '../state/PlannerProvider';
 
 function eventBlocks(provider: IntegrationProvider, events: IntegrationEvent[]): Block[] {
   const blocks: Block[] = [];
+  const title = (value: string) => (value.trim() || 'Busy').slice(0, 160);
   for (const event of events) {
     if (event.allDay && event.startDate && event.endDate) {
       for (let day = event.startDate; day < event.endDate; day = addDays(day, 1)) {
-        blocks.push({ id: `ext-${provider}-${event.providerId}-${day}`, title: event.title || 'Busy', date: day, start: 0, end: 1440, kind: 'fixed', category: 'personal' });
+        blocks.push({ id: `ext-${provider}-${event.providerId}-${day}`, title: title(event.title), date: day, start: 0, end: 1440, kind: 'fixed', category: 'personal' });
       }
       continue;
     }
@@ -23,7 +24,7 @@ function eventBlocks(provider: IntegrationProvider, events: IntegrationEvent[]):
       const startMinute = day === startDay ? start.getHours() * 60 + start.getMinutes() : 0;
       const endDay = dateKey(end);
       const endMinute = day === endDay ? end.getHours() * 60 + end.getMinutes() : 1440;
-      if (endMinute > startMinute) blocks.push({ id: `ext-${provider}-${event.providerId}-${day}`, title: event.title || 'Busy', date: day, start: startMinute, end: endMinute, kind: 'fixed', category: 'personal' });
+      if (endMinute > startMinute) blocks.push({ id: `ext-${provider}-${event.providerId}-${day}`, title: title(event.title), date: day, start: startMinute, end: endMinute, kind: 'fixed', category: 'personal' });
     }
   }
   return blocks;
