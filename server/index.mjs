@@ -1,18 +1,28 @@
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { extractDrafts, validDate } from './ai.mjs';
+import { integrationConfigured, maybeHandleIntegrationRequest } from './integrations.mjs';
 
 export function makeServer(config = process.env, fetcher = fetch) {
   const counts = new Map();
   const allowedOrigins = (config.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
   return createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff');
-    const send = (status, body) => { res.writeHead(status); res.end(JSON.stringify(body)); };
+    const send = (status, body) => { if (res.writableEnded) return; res.writeHead(status); res.end(JSON.stringify(body)); };
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.includes(origin)) return send(403, { error: 'Origin not allowed.' });
     if (origin) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); }
-    if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS'); return send(204, {}); }
-    if (req.method === 'GET' && req.url === '/health') return send(200, { status: 'ok', aiConfigured: Boolean(config.OPENAI_API_KEY && config.OPENAI_MODEL && config.SUPABASE_URL && config.SUPABASE_ANON_KEY) });
+    if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); res.setHeader('Access-Control-Allow-Methods', 'POST, GET, DELETE, OPTIONS'); return send(204, {}); }
+    if (req.method === 'GET' && req.url === '/health') return send(200, {
+      status: 'ok',
+      aiConfigured: Boolean(config.OPENAI_API_KEY && config.OPENAI_MODEL && config.SUPABASE_URL && config.SUPABASE_ANON_KEY),
+      integrations: {
+        google: integrationConfigured('google', config),
+        microsoft: integrationConfigured('microsoft', config),
+      },
+    });
+
+    if (await maybeHandleIntegrationRequest(req, res, config, fetcher, send)) return;
     if (req.method !== 'POST' || req.url !== '/v1/extract') return send(404, { error: 'Not found.' });
     if (!config.SUPABASE_URL || !config.SUPABASE_ANON_KEY || !config.OPENAI_API_KEY || !config.OPENAI_MODEL) return send(503, { error: 'AI backend is not configured.' });
     const auth = req.headers.authorization;
