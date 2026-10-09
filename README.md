@@ -122,7 +122,7 @@ Settings offers **Save a cloud backup** and **Restore latest backup**. Each save
 
 ## Integration status
 
-| Capability | v0.1 |
+| Capability | v0.2 |
 | --- | --- |
 | Native iOS/Android UI and browser preview | Implemented; physical device testing still required |
 | Tasks, fixed appointments, Today/Week views | Implemented |
