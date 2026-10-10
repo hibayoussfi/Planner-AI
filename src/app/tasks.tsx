@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DatePickerField } from '../components/DatePickerField';
 import { Body, Button, Card, Choices, Field, Heading, Notice, Page } from '../components/ui';
 import { validateTask, type Category, type Task } from '../core/planner';
 import { usePlanner } from '../state/PlannerProvider';
@@ -18,7 +19,7 @@ export default function Tasks() {
   };
   return <Page eyebrow="CAPTURE / PRIORITISE / MAKE SPACE" title="Your priorities." subtitle="Give each task a realistic duration. A workout is a priority too.">
     <Card><Heading>{editing ? 'Edit task' : 'Add a task'}</Heading><Field label="What needs doing?" value={title} onChangeText={setTitle} maxLength={160} placeholder="Prepare for an interview" />
-      <Field label="Duration in minutes" value={minutes} onChangeText={setMinutes} keyboardType="number-pad" /><Field label="Deadline (optional, YYYY-MM-DD)" placeholder="2026-10-16" value={deadline} onChangeText={setDeadline} autoCapitalize="none" />
+      <Field label="Duration in minutes" value={minutes} onChangeText={setMinutes} keyboardType="number-pad" /><DatePickerField label="Deadline (optional)" value={deadline} onChange={setDeadline} optional />
       <Choices label="Category" values={['work', 'personal', 'fitness']} value={category} onChange={setCategory} /><Choices label="Priority" values={['Low', 'Normal', 'High']} value={priority} onChange={setPriority} />
       {!!error && <Notice danger text={error} />}<Button title={editing ? 'Save changes' : 'Add task'} onPress={save} />{editing && <Button title="Cancel editing" secondary onPress={clear} />}
     </Card>
